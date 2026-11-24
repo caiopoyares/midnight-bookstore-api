@@ -37,7 +37,7 @@ class Health {
   providers: [Jobs],
   controllers: [Health],
 })
-export class AppModule {}
+class AppModule {}
 export async function bootstrap() {
   validateConfig();
   const app = await NestFactory.create(AppModule, { rawBody: true });

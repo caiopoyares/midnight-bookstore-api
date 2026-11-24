@@ -27,7 +27,7 @@ import {
   staffIdentity,
 } from './config';
 
-export type Address = {
+type Address = {
   name: string;
   street: string;
   city: string;

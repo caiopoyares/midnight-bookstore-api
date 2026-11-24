@@ -10,7 +10,7 @@ import { Database } from './db';
 import { shipping, country, currency } from './config';
 
 @Injectable()
-export class Catalog {
+class Catalog {
   constructor(private db: Database) {}
   async books(slug?: string) {
     const { rows } = await this.db.pool.query(
