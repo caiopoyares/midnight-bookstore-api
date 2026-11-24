@@ -72,9 +72,10 @@ export class Auth {
       origin +
       '/login#token=' +
       token;
+    const localInbox = Boolean(process.env.MAILPIT_URL && !prod);
     try {
       let response: globalThis.Response;
-      if (process.env.MAILPIT_URL && !prod) {
+      if (localInbox) {
         response = await fetch(process.env.MAILPIT_URL + '/api/v1/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -110,6 +111,12 @@ export class Auth {
         'Não foi possível enviar o e-mail. Tente novamente.',
         503,
       );
+    }
+    if (localInbox) {
+      return {
+        message: 'O link de acesso está na caixa de e-mail de desenvolvimento.',
+        inboxUrl: process.env.MAILPIT_PUBLIC_URL ?? 'http://localhost:8025',
+      };
     }
     return { message: 'Enviamos um link de acesso para o seu e-mail.' };
   }

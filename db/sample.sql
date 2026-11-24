@@ -13,16 +13,16 @@ INSERT INTO books(slug,title,author,genre,synopsis,note,position) VALUES
 ('horror-dunwich','O horror de Dunwich','H. P. Lovecraft','Terror cósmico','Uma família isolada, um nascimento estranho e livros proibidos anunciam uma ameaça nas colinas de Dunwich.','Uma paisagem rural em que cada detalhe parece esconder algo maior.',12)
 ON CONFLICT(slug) DO UPDATE SET title=excluded.title,author=excluded.author,genre=excluded.genre,synopsis=excluded.synopsis,note=excluded.note;
 INSERT INTO editions(sku,book_slug,format,price,on_hand) VALUES
-('HILL-PB','hill-house','Brochura',5990,12),('HILL-HC','hill-house','Capa dura',8990,1),
-('WILL-PB','willows','Brochura',3990,9),('CARM-HC','carmilla','Capa dura',7990,5),
-('KING-PB','king-in-yellow','Brochura',4990,8),('FRAN-PB','frankenstein','Brochura',5490,11),
-('FRAN-HC','frankenstein','Capa dura',8490,0),('TURN-PB','turn-of-the-screw','Brochura',4490,7)
+('HILL-PB','hill-house','Paperback',5990,12),('HILL-HC','hill-house','Capa dura',8990,1),
+('WILL-PB','willows','Paperback',3990,9),('CARM-HC','carmilla','Capa dura',7990,5),
+('KING-PB','king-in-yellow','Paperback',4990,8),('FRAN-PB','frankenstein','Paperback',5490,11),
+('FRAN-HC','frankenstein','Capa dura',8490,0),('TURN-PB','turn-of-the-screw','Paperback',4490,7)
 ON CONFLICT DO NOTHING;
 INSERT INTO editions(sku,book_slug,format,price,on_hand) VALUES
-('DRAC-PB','dracula', 'Brochura',5990,12),
-('DOR-PB','dorian-gray', 'Brochura',4990,7),
-('CTHU-PB','cthulhu', 'Brochura',3490,10),
+('DRAC-PB','dracula', 'Paperback',5990,12),
+('DOR-PB','dorian-gray', 'Paperback',4990,7),
+('CTHU-PB','cthulhu', 'Paperback',3490,10),
 ('RAV-HC','raven', 'Capa dura',6990,6),
-('PAW-PB','monkey-paw', 'Brochura',2990,9),
-('DUN-PB','horror-dunwich', 'Brochura',3990,8)
+('PAW-PB','monkey-paw', 'Paperback',2990,9),
+('DUN-PB','horror-dunwich', 'Paperback',3990,8)
 ON CONFLICT DO NOTHING;
