@@ -384,11 +384,48 @@ test('login links are single-use and sessions cannot read another customer order
     401,
   );
   assert.equal((await request('orders/' + id)).status, 200);
+  assert.equal((await request('orders', null, { Cookie: '' })).status, 401);
+  const mine = await request('orders');
+  assert.equal(mine.body.total, 1);
+  assert.equal(mine.body.orders[0].id, id);
+  assert.ok(mine.body.orders[0].lines.length > 0);
+  const otherHistory = await request('orders', null, { Cookie: otherCookie });
+  assert.equal(otherHistory.body.total, 0);
+  assert.deepEqual(otherHistory.body.orders, []);
+  assert.equal((await request('orders?page=0')).status, 400);
   await request('auth/logout', {}, { Cookie: otherCookie });
   assert.equal(
     (await request('auth/me', null, { Cookie: otherCookie })).status,
     401,
   );
+});
+test('customer history paginates all orders without duplicates', async () => {
+  await request(
+    'staff/stock',
+    {
+      sku: 'HILL-PB',
+      delta: 30,
+      reason: 'History test fixture',
+      requestId: randomUUID(),
+    },
+    { Authorization: 'Bearer ' + staff },
+  );
+  const expected = [];
+  for (let i = 0; i < 21; i++) {
+    const result = await buy([line('HILL-PB')]);
+    assert.equal(result.status, 200);
+    expected.push(result.body.id);
+  }
+  const first = (await request('orders?page=1')).body,
+    second = (await request('orders?page=2')).body;
+  assert.equal(first.total, 21);
+  assert.equal(first.orders.length, 20);
+  assert.equal(second.orders.length, 1);
+  const all = [...first.orders, ...second.orders];
+  assert.equal(new Set(all.map((o) => o.id)).size, 21);
+  assert.deepEqual(new Set(all.map((o) => o.id)), new Set(expected));
+  assert.equal(all[0].id, expected[20]);
+  assert.equal((await request('orders?page=3')).body.orders.length, 0);
 });
 test('a cold backup restores inventory and settled orders to a separate PostgreSQL cluster', async () => {
   const {

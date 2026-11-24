@@ -31,7 +31,7 @@ function cookie(req: Request) {
 @Injectable()
 export class Auth {
   constructor(private db: Database) {}
-  async request(email: unknown, ip: string) {
+  async request(email: unknown, ip: string, returnTo?: string) {
     if (
       typeof email !== 'string' ||
       email.length > 254 ||
@@ -70,7 +70,9 @@ export class Auth {
     const text =
       'Acesse sua conta na Midnight Books. Este link vale por 15 minutos e pode ser usado uma vez.\n\n' +
       origin +
-      '/login#token=' +
+      '/login?next=' +
+      encodeURIComponent(returnTo === '/purchases' ? '/purchases' : '/bag') +
+      '#token=' +
       token;
     const localInbox = Boolean(process.env.MAILPIT_URL && !prod);
     try {
@@ -184,10 +186,10 @@ export class Auth {
 class AuthController {
   constructor(private auth: Auth) {}
   @Post('link') @HttpCode(200) link(
-    @Body() body: { email: unknown },
+    @Body() body: { email: unknown; returnTo?: string },
     @Req() req: Request,
   ) {
-    return this.auth.request(body?.email, req.ip ?? 'unknown');
+    return this.auth.request(body?.email, req.ip ?? 'unknown', body?.returnTo);
   }
   @Post('verify') @HttpCode(200) async verify(
     @Body() body: { token: unknown },

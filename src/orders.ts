@@ -10,6 +10,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { Auth } from './auth';
 import type { Request } from 'express';
@@ -254,6 +255,35 @@ class OrdersController {
     private orders: Orders,
     private auth: Auth,
   ) {}
+  @Get('orders') async history(
+    @Req() req: Request,
+    @Query('page') value?: string,
+  ) {
+    const user = await this.auth.require(req);
+    const page = Number(value ?? 1);
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger((page - 1) * 20)
+    ) {
+      throw new BadRequestException('Informe uma página válida.');
+    }
+    const { rows } = await this.orders.db.pool.query(
+      `WITH customer_page AS (
+        SELECT o.id,o.state,o.total,o.currency,o.created_at,o.shipped_at,
+          COALESCE((SELECT jsonb_agg(jsonb_build_object(
+            'sku',l.sku,'title',l.title,'format',l.format,'quantity',l.quantity,'price',l.price
+          ) ORDER BY l.sku) FROM order_lines l WHERE l.order_id=o.id),'[]'::jsonb) AS lines
+        FROM orders o WHERE o.customer_id=$1
+        ORDER BY o.created_at DESC,o.id DESC LIMIT 20 OFFSET $2
+      )
+      SELECT (SELECT count(*)::int FROM orders WHERE customer_id=$1) AS total,
+        COALESCE(jsonb_agg(p ORDER BY p.created_at DESC,p.id DESC),'[]'::jsonb) AS orders
+      FROM customer_page p`,
+      [user.id, (page - 1) * 20],
+    );
+    return { ...rows[0], page, pageSize: 20 };
+  }
   @Get('orders/:id') async summary(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
