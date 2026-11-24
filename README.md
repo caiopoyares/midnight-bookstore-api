@@ -20,6 +20,8 @@ docker compose up --build -d --wait
 
 O arquivo .env contém a senha do PostgreSQL e as chaves individuais da equipe. O script preserva configurações existentes. Entre no PostgreSQL com o usuário midnight e a base midnight, usando POSTGRES_PASSWORD. O painel da livraria utiliza a chave da pessoa identificada em STAFF_KEYS.
 
+O Git ignora .env e suas variantes, além de .local/. O arquivo versionado .env.example contém apenas exemplos de configuração. Configure POSTGRES_PASSWORD, STAFF_KEYS e as credenciais de Stripe e Resend no ambiente local ou no gerenciador de segredos da hospedagem. O Docker recebe esses valores em tempo de execução.
+
 O Compose cria uma base demonstrativa nova e mantém os dados no volume postgres_data. Para parar, use docker compose down. Para atualizar, execute docker compose up --build -d --wait. O volume é preservado entre reinicializações.
 
 ## Acesso por e-mail
