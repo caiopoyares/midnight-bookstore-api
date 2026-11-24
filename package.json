@@ -7,6 +7,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "db:migrate": "node --env-file-if-exists=.env dist/migrate.js",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "dev": "docker compose up --build",
     "test": "npm run build && node --test test/*.test.cjs"

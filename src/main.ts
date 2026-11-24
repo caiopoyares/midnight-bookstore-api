@@ -58,8 +58,6 @@ export async function bootstrap() {
         .json({ message: 'Origem da solicitação inválida.' });
     next();
   });
-  const db = app.get(Database);
-  await db.migrate(process.env.SEED_CATALOG === 'yes');
   app.enableShutdownHooks();
   await app.listen(
     Number(process.env.PORT ?? 4100),

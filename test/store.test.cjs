@@ -13,6 +13,7 @@ const hook = 'whsec_local_fixture';
 let sessionCookie;
 let app, db, pg, dir, url, payments, jobs, openCluster, port;
 let failAfterCreate, completeDuringExpiry;
+const { migrate } = require('../dist/migrate');
 const sessions = new Map(),
   keys = new Map();
 const address = {
@@ -84,13 +85,18 @@ before(async () => {
     STRIPE_SECRET_KEY: 'sk_test_fixture',
     STRIPE_WEBHOOK_SECRET: hook,
     PORT: '0',
-    SEED_CATALOG: 'yes',
     STAFF_KEYS: JSON.stringify({ tester: staff }),
   });
   const { bootstrap } = require('../dist/main'),
     { Database } = require('../dist/db'),
     { Payments } = require('../dist/payments'),
     { Jobs } = require('../dist/jobs');
+  const migrationDb = new Database();
+  try {
+    await migrate(migrationDb, { seed: true });
+  } finally {
+    await migrationDb.onModuleDestroy();
+  }
   app = await bootstrap();
   db = app.get(Database);
   payments = app.get(Payments);
@@ -141,7 +147,7 @@ beforeEach(async () => {
   sessions.clear();
   // This database lives in a new temporary cluster for this suite.
   await db.pool.query('TRUNCATE books,orders,customers,login_links CASCADE');
-  await db.migrate(true);
+  await migrate(db, { seed: true });
   const customerId = randomUUID(),
     token = randomBytes(32).toString('hex');
   sessionCookie = 'midnight_session=' + token;

@@ -24,6 +24,28 @@ O Git ignora .env e suas variantes, além de .local/. O arquivo versionado .env.
 
 O Compose cria uma base demonstrativa nova e mantém os dados no volume postgres_data. Para parar, use docker compose down. Para atualizar, execute docker compose up --build -d --wait. O volume é preservado entre reinicializações.
 
+## Migrações do banco
+
+O comando de migração é separado da inicialização da API. O serviço `migrate` do Compose aguarda o PostgreSQL, aplica as migrações e termina. A API inicia somente após a conclusão bem-sucedida desse serviço.
+
+Para executar fora do Compose, configure `DATABASE_URL` e use:
+
+```sh
+npm run build
+npm run db:migrate
+npm start
+```
+
+Para executar manualmente no Docker:
+
+```sh
+docker compose run --rm migrate
+```
+
+O runner descobre arquivos no formato `NNN_nome.sql` em `db/`, ordena pelo número e registra os nomes na tabela `migrations`. Para adicionar uma migração, crie o próximo arquivo, por exemplo `006_nome.sql`, sem alterar arquivos já aplicados. Não é necessário editar código TypeScript. O histórico existente é preservado. As migrações pendentes são executadas em uma transação protegida por lock do PostgreSQL; uma falha desfaz o lote e duas execuções simultâneas são serializadas.
+
+O arquivo `sample.sql` é separado das migrações e só é executado com `npm run db:migrate -- --seed` ou `SEED_CATALOG=yes`. O Compose habilita essa opção para a demonstração local; configure `SEED_CATALOG=no` para não carregar o catálogo fictício. Na implantação de produção, execute a migração uma vez antes de iniciar ou atualizar as instâncias da API.
+
 ## Acesso por e-mail
 
 Abra a loja, adicione livros e entre com um e-mail. O Mailpit recebe a mensagem localmente. Abra a caixa em http://localhost:8025, copie o link da mensagem e confirme o acesso na loja. O link expira em 15 minutos e só pode ser utilizado uma vez. A sessão dura sete dias, usa cookie HttpOnly e é revogada ao sair. A sacola permanece no navegador.

@@ -20,12 +20,23 @@ services:
     image: axllent/mailpit:v1.29
     ports:
       - "127.0.0.1:8025:8025"
+  migrate:
+    build: .
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://midnight:${POSTGRES_PASSWORD}@postgres:5432/midnight
+      SEED_CATALOG: ${SEED_CATALOG:-yes}
   api:
     build: .
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       MAILPIT_URL: http://mailpit:8025
       NODE_ENV: development
@@ -36,7 +47,6 @@ services:
       PAYMENT_MODE: ${PAYMENT_MODE:-demo}
       SHIPPING_COUNTRY: ${SHIPPING_COUNTRY:-BR}
       SHIPPING_CENTS: ${SHIPPING_CENTS:-495}
-      SEED_CATALOG: ${SEED_CATALOG:-yes}
       STAFF_KEYS: ${STAFF_KEYS}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

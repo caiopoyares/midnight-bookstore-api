@@ -1,7 +1,5 @@
 import { Global, Injectable, Module, OnModuleDestroy } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 @Injectable()
 export class Database implements OnModuleDestroy {
@@ -22,44 +20,6 @@ export class Database implements OnModuleDestroy {
     } finally {
       client.release();
     }
-  }
-  async migrate(seed = false) {
-    await this.tx(async (client) => {
-      await client.query('SELECT pg_advisory_xact_lock(724691)');
-      await client.query(
-        'CREATE TABLE IF NOT EXISTS migrations (name text PRIMARY KEY)',
-      );
-      if (
-        !(await client.query("SELECT 1 FROM migrations WHERE name='001_store'"))
-          .rowCount
-      ) {
-        await client.query(
-          await readFile(join(__dirname, '../db/001_store.sql'), 'utf8'),
-        );
-        await client.query("INSERT INTO migrations VALUES ('001_store')");
-      }
-      for (const name of [
-        '002_accounts',
-        '003_portuguese',
-        '004_paperback',
-        '005_synopses',
-      ]) {
-        if (
-          !(
-            await client.query('SELECT 1 FROM migrations WHERE name=$1', [name])
-          ).rowCount
-        ) {
-          await client.query(
-            await readFile(join(__dirname, '../db/' + name + '.sql'), 'utf8'),
-          );
-          await client.query('INSERT INTO migrations VALUES ($1)', [name]);
-        }
-      }
-      if (seed)
-        await client.query(
-          await readFile(join(__dirname, '../db/sample.sql'), 'utf8'),
-        );
-    });
   }
   async onModuleDestroy() {
     await this.pool.end();
