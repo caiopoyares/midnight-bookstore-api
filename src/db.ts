@@ -38,7 +38,12 @@ export class Database implements OnModuleDestroy {
         );
         await client.query("INSERT INTO migrations VALUES ('001_store')");
       }
-      for (const name of ['002_accounts', '003_portuguese', '004_paperback']) {
+      for (const name of [
+        '002_accounts',
+        '003_portuguese',
+        '004_paperback',
+        '005_synopses',
+      ]) {
         if (
           !(
             await client.query('SELECT 1 FROM migrations WHERE name=$1', [name])
