@@ -1,3 +1,5 @@
+> Plano inicial de referência. Os requisitos atuais de autenticação, Docker e localização estão documentados no README.md.
+
 # Horror bookstore launch plan
 
 Start with two Git repositories, one Node.js backend and one PostgreSQL database. The first engineering milestone is a checkout test in which two readers try to buy the last copy of the same edition. Exactly one should succeed.

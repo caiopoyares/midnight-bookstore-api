@@ -1,5 +1,5 @@
 {
-  "name": "nightjar-api",
+  "name": "midnight-api",
   "version": "1.0.0",
   "private": true,
   "engines": {
@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/main.js",
-    "dev": "npm run build && node --env-file-if-exists=.env scripts/local.mjs",
+    "dev": "docker compose up --build",
     "test": "npm run build && node --test test/*.test.cjs"
   },
   "dependencies": {

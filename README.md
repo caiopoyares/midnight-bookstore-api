@@ -1,52 +1,50 @@
-# Nightjar Books API
+# Midnight Books — API
 
-A Node.js and TypeScript modular monolith for a physical horror bookstore. NestJS serves the API and PostgreSQL owns edition-level stock, orders, payment history, stock adjustments and the email outbox. The companion storefront runs in the sibling `horror-bookstore-frontend` repository. [Original launch plan](BOOKSTORE_PLAN.md)
+Monólito modular em Node.js, TypeScript e NestJS com PostgreSQL. O catálogo contém 12 títulos reais e 14 edições de demonstração, com capas conceituais, preços e estoque fictícios. Os pedidos são vinculados à conta autenticada. A reserva de estoque continua atômica para todos os itens da sacola.
 
-## Run the local shop
+## Executar com Docker
 
-Use Node.js 24 LTS and npm. Run these commands from this repository.
+Mantenha os repositórios em pastas irmãs, com os nomes atuais. A partir deste repositório:
+
+```sh
+node scripts/setup-docker.mjs
+docker compose up --build -d --wait
+```
+
+| Serviço | Endereço local |
+| --- | --- |
+| Loja | http://localhost:3000 |
+| API | http://localhost:4100/v1 |
+| Caixa de e-mail de desenvolvimento | http://localhost:8025 |
+| PostgreSQL | 127.0.0.1:55434 |
+
+O arquivo .env contém a senha do PostgreSQL e as chaves individuais da equipe. O script preserva configurações existentes. Entre no PostgreSQL com o usuário midnight e a base midnight, usando POSTGRES_PASSWORD. O painel da livraria utiliza a chave da pessoa identificada em STAFF_KEYS.
+
+O Compose cria uma base demonstrativa nova e mantém os dados no volume postgres_data. Para parar, use docker compose down. Para atualizar, execute docker compose up --build -d --wait. O volume é preservado entre reinicializações.
+
+## Acesso por e-mail
+
+Abra a loja, adicione livros e entre com um e-mail. O Mailpit recebe a mensagem localmente. Abra a caixa em http://localhost:8025, copie o link da mensagem e confirme o acesso na loja. O link expira em 15 minutos e só pode ser utilizado uma vez. A sessão dura sete dias, usa cookie HttpOnly e é revogada ao sair. A sacola permanece no navegador.
+
+A API exige sessão para iniciar pagamentos, consultar pedidos e concluir o pagamento demonstrativo. O e-mail do pedido vem da conta autenticada. Cada cliente acessa apenas seus próprios pedidos. Solicitações de link têm limite por endereço de e-mail e IP. O navegador consulta a API diretamente, com CORS limitado ao endereço configurado em STOREFRONT_URL.
+
+## Configuração comercial e implantação
+
+A demonstração utiliza português do Brasil, BRL e entregas no Brasil. O frete demonstrativo é R$ 4,95 e pode ser alterado com SHIPPING_CENTS. Os preços incluem os tributos aplicáveis. O pagamento atual é simulado.
+
+A imagem pode ser executada com NODE_ENV=production, DATABASE_URL, STOREFRONT_URL HTTPS, STAFF_KEYS, PAYMENT_MODE=stripe, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SHIPPING_COUNTRY=BR, SHIPPING_CENTS, RESEND_API_KEY e MAIL_FROM. Configure um domínio remetente verificado no Resend para receber os links de acesso em caixas reais. Mailpit é a caixa de testes local.
+
+Use origens HTTPS do mesmo site, por exemplo loja.exemplo.com e api.exemplo.com, para o cookie SameSite=Lax. A API aceita a origem exata de STOREFRONT_URL. O webhook do Stripe utiliza /v1/payments/webhook e verifica a assinatura do corpo original. Ative checkout.session.completed e checkout.session.expired. Configure limites de tráfego no proxy de entrada.
+
+O worker reconcilia reservas vencidas e envia confirmações com repetição segura. O endpoint /v1/health sinaliza reservas atrasadas e problemas na fila de e-mail. Configure backups do volume ou do PostgreSQL gerenciado conforme a implantação.
+
+## Contrato e testes
+
+O contrato OpenAPI é contract/openapi-1.1.0.json. O frontend mantém uma cópia dessa versão.
 
 ```sh
 npm ci
-npm run dev
-```
-
-The API listens on `http://127.0.0.1:4100`. Local mode starts a loopback PostgreSQL server on port 55432, runs migrations, seeds six titles and eight editions, and persists its data in `.local/`. Restarting the API preserves orders and stock counts. Start the storefront in a second terminal. Local checkout uses a demo payment and records a demo email job.
-
-Open the storefront's **Staff desk** and use the credential in `.local/staff-key`. The launcher generates it on first start with owner-only file permissions. Individual production staff keys are configured separately. Set `PGPORT`, `PORT` or `LOCAL_DATA_DIR` to use a second isolated environment. To use an existing development PostgreSQL database, set `DATABASE_URL`.
-
-## Checkout and inventory
-
-The versioned contract is `contract/openapi-1.0.0.json`. The storefront pins its own copy. The public API is under `/v1`.
-
-1. A checkout request carries a UUID attempt key, guest shipping details and SKU quantities. The API normalizes the request, snapshots catalog prices and reserves every line in sorted SKU order in one PostgreSQL transaction. Insufficient stock rolls back the whole order. Reusing an attempt key with a changed basket returns HTTP 409.
-2. Stripe mode creates hosted card checkout after commit with a stable provider idempotency key. The API compares the signed payment event with the saved order. An order lock, unique event IDs and database constraints protect the stock counters on retries. Each paid order creates one confirmation job.
-3. Every 15 seconds the worker checks overdue holds. It asks Stripe to close an open session or confirm its final status before releasing inventory. If Stripe is unreachable the hold stays in place. Old ambiguous session creations are reconciled against the provider ledger before release.
-4. Staff can receive stock, record damage or corrections, inspect held stock and ship paid orders. Stock changes have a request ID, operator and reason. The guest receipt URL is private to its holder. Keep order URLs out of shared analytics and application logs.
-
-## Verification
-
-```sh
 npm test
 ```
 
-The suite starts an isolated native PostgreSQL cluster, exercises the HTTP API, and restores an offline backup into a second cluster. It uses local Stripe session fixtures, real signature verification and a simulated email transport. The one-copy race opens 20 concurrent checkout requests. The suite also covers atomic multi-line failure, concurrent retries, payment racing expiry, provider timeouts, stock audit entries and duplicate notifications.
-
-## Deployment and operations
-
-Build with `npm ci && npm run build`; run `npm start`. The Dockerfile packages the same entry point. Set `HOST=0.0.0.0` inside a container. The process runs migrations under a database lock. Leave `SEED_CATALOG` unset for an existing inventory. Set it to `yes` to install the sample catalog intentionally. The initial catalog and unit prices are in `db/sample.sql`; enter actual saleable stock before accepting live orders.
-
-Use an always-on backend and a managed PostgreSQL database. Schedule database backups and rehearse restoration on an isolated database. The automated test exercises a cold backup of a stopped local cluster. For a managed live database, enable the host's snapshots and point-in-time recovery. Confirm edition counts and paid orders on a restored instance before directing traffic to it.
-
-Set `NODE_ENV=production` and supply the following settings via the deployment secret manager. [Configuration example](.env.example)
-
-| Setting | Purpose |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string with the appropriate TLS settings for the host. |
-| `STOREFRONT_URL` | Canonical HTTPS storefront origin for payment redirects and receipts. |
-| `PAYMENT_MODE=stripe`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Card payments. Point a Stripe webhook at the public backend route `/v1/payments/webhook` for `checkout.session.completed` and `checkout.session.expired`. Preserve the raw body. |
-| `SHIPPING_COUNTRY`, `SHIPPING_CENTS` | One accepted country and a flat charge expressed in USD cents. Local defaults are US and 495. Prices and shipping are tax-inclusive. Enter amounts appropriate for the launch market. |
-| `STAFF_KEYS` | JSON object mapping staff names to separate random secrets of at least 32 characters. Rotate a key by changing the secret and restarting the service. |
-| `RESEND_API_KEY`, `MAIL_FROM` | Confirmation delivery using a verified sending domain. Demo mode records a preview status without sending mail. |
-
-Put the API behind TLS. Route shopper traffic through the storefront's same-origin API proxy and restrict direct public backend traffic to the webhook and required health checks. Configure per-client checkout limits at the storefront edge. Poll `GET /v1/health` from your monitoring service. A 503 flags a hold overdue by ten minutes, a failed email or a queued email older than thirty minutes. The staff desk identifies affected orders. Review provider delivery history before retrying an email outside its idempotency window. Run a Stripe test-mode purchase and verify receipt delivery in the intended environment before enabling live keys.
+A suíte usa uma instância PostgreSQL temporária e isolada para testar concorrência pelo último exemplar, falha parcial, repetição de pagamentos, restauração, links de uso único e isolamento entre clientes. A aplicação cotidiana usa o PostgreSQL do Compose.

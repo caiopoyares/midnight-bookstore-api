@@ -38,6 +38,18 @@ export class Database implements OnModuleDestroy {
         );
         await client.query("INSERT INTO migrations VALUES ('001_store')");
       }
+      for (const name of ['002_accounts', '003_portuguese']) {
+        if (
+          !(
+            await client.query('SELECT 1 FROM migrations WHERE name=$1', [name])
+          ).rowCount
+        ) {
+          await client.query(
+            await readFile(join(__dirname, '../db/' + name + '.sql'), 'utf8'),
+          );
+          await client.query('INSERT INTO migrations VALUES ($1)', [name]);
+        }
+      }
       if (seed)
         await client.query(
           await readFile(join(__dirname, '../db/sample.sql'), 'utf8'),

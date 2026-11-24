@@ -1,14 +1,28 @@
-INSERT INTO books (slug,title,author,genre,synopsis,note,position) VALUES
-('hill-house','The Haunting of Hill House','Shirley Jackson','Gothic horror','Four strangers arrive at a house with a long memory. For Eleanor, the invitation feels like a chance to belong. The house seems to agree.','Read it for the small cruelties around the breakfast table. By the time the walls start knocking, the house already feels alive.',1),
-('willows','The Willows','Algernon Blackwood','Folk horror','A canoe trip on the Danube leaves two travelers stranded among shifting islands. As the river rises, the willows begin to move against the wind.','A slim book for a windy night. Blackwood makes the open sky feel every bit as confining as a locked room.',2),
-('carmilla','Carmilla','Sheridan Le Fanu','Gothic horror','A carriage accident brings a captivating stranger to a secluded Styrian estate. Laura welcomes her new companion as a mysterious illness spreads through the countryside.','For readers who like their ghost stories intimate, languid and just a little too close for comfort.',3),
-('king-in-yellow','The King in Yellow','Robert W. Chambers','Cosmic horror','A forbidden play winds through these strange tales of artists, troubled cities and a distant place called Carcosa. Some readers never return from its second act.','Try the opening stories in a single sitting. Tiny echoes between them make the whole city seem to share a fever.',4),
-('frankenstein','Frankenstein','Mary Shelley','Gothic horror','Victor Frankenstein brings a creature to life and abandons it. Their pursuit of one another stretches from Alpine ice to the edge of the Arctic.','Come for the laboratory. Stay for the creature learning to read, watching a family through a crack in the wall.',5),
-('turn-of-the-screw','The Turn of the Screw','Henry James','Psychological horror','A young governess takes charge of two children at an isolated country house. What she sees across the lake changes how she reads their every word.','Read with a friend. The smallest turn of a sentence can leave you imagining two very different houses.',6)
+INSERT INTO books(slug,title,author,genre,synopsis,note,position) VALUES
+('hill-house','A assombração da Casa da Colina','Shirley Jackson','Terror gótico','Quatro desconhecidos chegam a uma casa que guarda lembranças. Para Eleanor, o convite parece uma chance de pertencer. A casa parece concordar.','Preste atenção às pequenas crueldades à mesa. Quando as paredes começarem a bater, a casa já estará viva.',1),
+('willows','Os salgueiros','Algernon Blackwood','Terror folclórico','Dois viajantes ficam presos em uma ilha do Danúbio. Enquanto a água sobe, os salgueiros começam a se mover contra o vento.','Uma leitura curta para uma noite de ventania. O céu aberto pode ser tão sufocante quanto um quarto fechado.',2),
+('carmilla','Carmilla','Sheridan Le Fanu','Terror gótico','Uma visitante fascinante chega a uma propriedade isolada. Laura acolhe sua nova companhia enquanto uma doença misteriosa se espalha pela região.','Uma história íntima e lenta, em que cada gesto de afeto pode esconder uma ameaça.',3),
+('king-in-yellow','O Rei de Amarelo','Robert W. Chambers','Terror cósmico','Uma peça proibida atravessa histórias de artistas, cidades perturbadoras e um lugar distante chamado Carcosa. Alguns leitores nunca voltam do segundo ato.','Leia os primeiros contos de uma vez. As pequenas conexões fazem a cidade inteira parecer febril.',4),
+('frankenstein','Frankenstein','Mary Shelley','Terror gótico','Victor Frankenstein dá vida a uma criatura e a abandona. A perseguição entre criador e criação vai dos Alpes até as margens do Ártico.','Acompanhe a criatura aprendendo a ler e observando uma família pela fresta da parede.',5),
+('turn-of-the-screw','A volta do parafuso','Henry James','Terror psicológico','Uma jovem governanta cuida de duas crianças em uma casa de campo. O que ela vê do outro lado do lago muda a forma como interpreta cada palavra delas.','Leia com alguém. Uma pequena mudança de interpretação pode revelar duas casas completamente diferentes.',6),
+('dracula','Drácula','Bram Stoker','Terror gótico','Cartas, diários e notícias revelam a chegada de uma presença antiga à Inglaterra. Um grupo improvável precisa aprender a enfrentar o conde.','Um clássico de ritmo surpreendente, contado pelas vozes de quem tenta entender a ameaça.',7),
+('dorian-gray','O retrato de Dorian Gray','Oscar Wilde','Terror psicológico','Um jovem deseja conservar sua beleza enquanto um retrato recebe as marcas de suas escolhas. O desejo cobra um preço.','Observe como a conversa elegante se transforma aos poucos em uma história de horror.',8),
+('cthulhu','O chamado de Cthulhu','H. P. Lovecraft','Terror cósmico','Anotações e relatos dispersos levam um investigador a uma presença adormecida e a um culto que atravessa continentes.','Uma investigação feita de fragmentos. Cada descoberta amplia a sensação de insignificância.',9),
+('raven','O corvo e outros poemas','Edgar Allan Poe','Terror gótico','Luto, lembranças e visitantes noturnos atravessam esta seleção de poemas de um dos grandes nomes da literatura de horror.','Leia em voz alta para perceber o peso das repetições e o ritmo das imagens.',10),
+('monkey-paw','A pata do macaco','W. W. Jacobs','Terror sobrenatural','Um objeto trazido de longe promete realizar três desejos. Uma família descobre que até o pedido mais simples pode ter consequências terríveis.','Uma sala comum, uma noite de chuva e três desejos bastam para construir o medo.',11),
+('horror-dunwich','O horror de Dunwich','H. P. Lovecraft','Terror cósmico','Uma família isolada, um nascimento estranho e livros proibidos anunciam uma ameaça nas colinas de Dunwich.','Uma paisagem rural em que cada detalhe parece esconder algo maior.',12)
+ON CONFLICT(slug) DO UPDATE SET title=excluded.title,author=excluded.author,genre=excluded.genre,synopsis=excluded.synopsis,note=excluded.note;
+INSERT INTO editions(sku,book_slug,format,price,on_hand) VALUES
+('HILL-PB','hill-house','Brochura',5990,12),('HILL-HC','hill-house','Capa dura',8990,1),
+('WILL-PB','willows','Brochura',3990,9),('CARM-HC','carmilla','Capa dura',7990,5),
+('KING-PB','king-in-yellow','Brochura',4990,8),('FRAN-PB','frankenstein','Brochura',5490,11),
+('FRAN-HC','frankenstein','Capa dura',8490,0),('TURN-PB','turn-of-the-screw','Brochura',4490,7)
 ON CONFLICT DO NOTHING;
 INSERT INTO editions(sku,book_slug,format,price,on_hand) VALUES
-('HILL-PB','hill-house','Paperback',1695,12),('HILL-HC','hill-house','Hardcover',2595,1),
-('WILL-PB','willows','Paperback',1295,9),('CARM-HC','carmilla','Hardcover',2295,5),
-('KING-PB','king-in-yellow','Paperback',1595,8),('FRAN-PB','frankenstein','Paperback',1495,11),
-('FRAN-HC','frankenstein','Hardcover',2495,0),('TURN-PB','turn-of-the-screw','Paperback',1395,7)
+('DRAC-PB','dracula', 'Brochura',5990,12),
+('DOR-PB','dorian-gray', 'Brochura',4990,7),
+('CTHU-PB','cthulhu', 'Brochura',3490,10),
+('RAV-HC','raven', 'Capa dura',6990,6),
+('PAW-PB','monkey-paw', 'Brochura',2990,9),
+('DUN-PB','horror-dunwich', 'Brochura',3990,8)
 ON CONFLICT DO NOTHING;

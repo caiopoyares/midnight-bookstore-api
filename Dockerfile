@@ -7,7 +7,7 @@ COPY src ./src
 RUN npm run build
 
 FROM node:24-bookworm-slim
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=4100
+ENV HOST=0.0.0.0 PORT=4100
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force

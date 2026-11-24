@@ -17,6 +17,7 @@ import {
 import type { Request } from 'express';
 import Stripe from 'stripe';
 import { Basket, Order, Orders, OrdersModule } from './orders';
+import { Auth } from './auth';
 import { mode } from './config';
 
 @Injectable()
@@ -30,7 +31,9 @@ export class Payments {
   constructor(private orders: Orders) {}
   private gateway() {
     if (!this.stripe)
-      throw new ServiceUnavailableException('Payment service is unavailable.');
+      throw new ServiceUnavailableException(
+        'O serviço de pagamentos está indisponível.',
+      );
     return this.stripe;
   }
   private async session(order: Order) {
@@ -39,7 +42,7 @@ export class Payments {
     // Stripe may prune a creation key after 24 hours. Older ambiguous sessions need staff review.
     if (Date.now() - order.created_at.getTime() > 22 * 3600000)
       throw new ServiceUnavailableException(
-        'Unresolved payment session needs review.',
+        'O pagamento pendente precisa de revisão.',
       );
     const session = await this.gateway().checkout.sessions.create(
       {
@@ -55,7 +58,7 @@ export class Payments {
               currency: order.currency,
               unit_amount: order.total,
               product_data: {
-                name: 'Nightjar Books order ' + order.id.slice(0, 8),
+                name: 'Midnight Books order ' + order.id.slice(0, 8),
               },
             },
           },
@@ -85,8 +88,8 @@ export class Payments {
     if (session.status === 'expired')
       await this.orders.settle(id, 'expired', eventId, expected);
   }
-  async checkout(key: string, body: Basket) {
-    const order = await this.orders.reserve(key, body),
+  async checkout(key: string, body: Basket, customerId?: string) {
+    const order = await this.orders.reserve(key, body, customerId),
       receipt = '/orders/' + order.id;
     if (order.mode === 'demo' || order.state !== 'pending')
       return { id: order.id, url: receipt };
@@ -166,7 +169,7 @@ export class Payments {
         process.env.STRIPE_WEBHOOK_SECRET!,
       );
     } catch {
-      throw new BadRequestException('Invalid webhook signature.');
+      throw new BadRequestException('Assinatura de pagamento inválida.');
     }
     if (
       event.type === 'checkout.session.completed' ||
@@ -182,7 +185,7 @@ export class Payments {
       order.state !== 'pending' ||
       order.expires_at.getTime() <= Date.now()
     )
-      throw new BadRequestException('This payment session is closed.');
+      throw new BadRequestException('Esta sessão de pagamento foi encerrada.');
     return {
       id,
       url: (await this.session(order)).url ?? order.origin + '/orders/' + id,
@@ -191,21 +194,30 @@ export class Payments {
 }
 @Controller('v1')
 class PaymentsController {
-  constructor(private payments: Payments) {}
-  @Post('checkout') @HttpCode(200) checkout(
+  constructor(
+    private payments: Payments,
+    private auth: Auth,
+  ) {}
+  @Post('checkout') @HttpCode(200) async checkout(
     @Headers('idempotency-key') key: string,
     @Body() body: Basket,
+    @Req() req: Request,
   ) {
-    return this.payments.checkout(key, body);
+    const user = await this.auth.require(req);
+    return this.payments.checkout(key, { ...body, email: user.email }, user.id);
   }
-  @Post('orders/:id/demo-pay') @HttpCode(200) demo(
+  @Post('orders/:id/demo-pay') @HttpCode(200) async demo(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
   ) {
+    await this.auth.own(req, id);
     return this.payments.demo(id);
   }
-  @Post('orders/:id/resume') @HttpCode(200) resume(
+  @Post('orders/:id/resume') @HttpCode(200) async resume(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
   ) {
+    await this.auth.own(req, id);
     return this.payments.resume(id);
   }
   @Post('payments/webhook') @HttpCode(200) webhook(

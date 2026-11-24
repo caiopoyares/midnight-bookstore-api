@@ -22,7 +22,7 @@ export class Jobs implements OnModuleInit, OnModuleDestroy {
       () =>
         void this.tick().catch(() =>
           this.log.error(
-            'Background work failed. Check database connectivity.',
+            'Background work failed. Confira database connectivity.',
           ),
         ),
       15000,
@@ -73,14 +73,14 @@ export class Jobs implements OnModuleInit, OnModuleDestroy {
         if (Date.now() - job.created_at.getTime() > 23 * 3600000)
           throw Error('Delivery window exceeded. Review delivery history.');
         const message =
-          'Your Nightjar Books order ' +
+          'Seu pedido na Midnight Books ' +
           job.order_id.slice(0, 8) +
-          ' is confirmed. Total: ' +
-          new Intl.NumberFormat('en-US', {
+          ' foi confirmado. Total: ' +
+          new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: job.currency,
           }).format(job.total / 100) +
-          '. View your receipt: ' +
+          '. Consulte seu pedido em ' +
           job.origin +
           '/orders/' +
           job.order_id;
@@ -95,7 +95,7 @@ export class Jobs implements OnModuleInit, OnModuleDestroy {
           body: JSON.stringify({
             from: process.env.MAIL_FROM,
             to: [job.email],
-            subject: 'Your Nightjar Books order',
+            subject: 'Seu pedido na Midnight Books',
             text: message,
           }),
         });

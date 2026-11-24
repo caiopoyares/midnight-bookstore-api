@@ -1,0 +1,64 @@
+name: midnight-books
+services:
+  postgres:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: midnight
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Execute node scripts/setup-docker.mjs}
+      POSTGRES_DB: midnight
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U midnight -d midnight"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports:
+      - "127.0.0.1:8025:8025"
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MAILPIT_URL: http://mailpit:8025
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 4100
+      DATABASE_URL: postgresql://midnight:${POSTGRES_PASSWORD}@postgres:5432/midnight
+      STOREFRONT_URL: ${STOREFRONT_URL:-http://localhost:3000}
+      PAYMENT_MODE: ${PAYMENT_MODE:-demo}
+      SHIPPING_COUNTRY: ${SHIPPING_COUNTRY:-BR}
+      SHIPPING_CENTS: ${SHIPPING_CENTS:-495}
+      SEED_CATALOG: ${SEED_CATALOG:-yes}
+      STAFF_KEYS: ${STAFF_KEYS}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    ports:
+      - "127.0.0.1:4100:4100"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/v1/shop').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  frontend:
+    build:
+      context: ../horror-bookstore-frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4100}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+volumes:
+  postgres_data:

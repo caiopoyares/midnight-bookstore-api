@@ -11,6 +11,9 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
+import { Auth } from './auth';
+import type { Request } from 'express';
+import { Req } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Database } from './db';
 import { Inventory, InventoryModule } from './inventory';
@@ -53,38 +56,36 @@ export interface Order {
 }
 function field(value: unknown, label: string, max: number) {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max)
-    throw new BadRequestException('Check ' + label + '.');
+    throw new BadRequestException('Confira ' + label + '.');
   return value.trim();
 }
 function normalize(body: Basket): Basket {
   const email = field(body?.email, 'email', 254).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    throw new BadRequestException('Enter a valid email.');
+    throw new BadRequestException('Informe um e-mail válido.');
   const address: Address = {
-    name: field(body.address?.name, 'recipient name', 100),
-    street: field(body.address?.street, 'street address', 180),
-    city: field(body.address?.city, 'city', 100),
-    region: field(body.address?.region, 'region', 100),
-    postal: field(body.address?.postal, 'postal code', 24),
+    name: field(body.address?.name, 'nome do destinatário', 100),
+    street: field(body.address?.street, 'endereço', 180),
+    city: field(body.address?.city, 'cidade', 100),
+    region: field(body.address?.region, 'estado', 100),
+    postal: field(body.address?.postal, 'CEP', 24),
     country: field(body.address?.country, 'country', 2).toUpperCase(),
   };
   if (address.country !== country)
-    throw new BadRequestException(
-      'Shipping is available only to ' + country + '.',
-    );
+    throw new BadRequestException('Entregamos apenas para ' + country + '.');
   if (
     !Array.isArray(body.lines) ||
     !body.lines.length ||
     body.lines.length > 50
   )
-    throw new BadRequestException('Choose between 1 and 50 editions.');
+    throw new BadRequestException('Escolha entre 1 e 50 edições.');
   const counts = new Map<string, number>();
   for (const item of body.lines) {
-    const sku = field(item?.sku, 'edition', 64),
+    const sku = field(item?.sku, 'edição', 64),
       quantity = item.quantity;
     const combined = (counts.get(sku) ?? 0) + quantity;
     if (!Number.isInteger(quantity) || quantity <= 0 || combined > 99)
-      throw new BadRequestException('Choose 1 to 99 copies per edition.');
+      throw new BadRequestException('Escolha de 1 a 99 exemplares por edição.');
     counts.set(sku, combined);
   }
   const lines = [...counts.keys()]
@@ -98,13 +99,19 @@ export class Orders {
     readonly db: Database,
     private inventory: Inventory,
   ) {}
-  async reserve(key: string, input: Basket): Promise<Order> {
+  async reserve(
+    key: string,
+    input: Basket,
+    customerId?: string,
+  ): Promise<Order> {
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         key ?? '',
       )
     )
-      throw new BadRequestException('Provide a UUID checkout attempt.');
+      throw new BadRequestException(
+        'A tentativa de compra deve ter um identificador válido.',
+      );
     const body = normalize(input);
     const fingerprint = createHash('sha256')
       .update(JSON.stringify(body))
@@ -130,9 +137,12 @@ export class Orders {
         const prior = (
           await client.query('SELECT * FROM orders WHERE attempt=$1', [key])
         ).rows[0];
-        if (prior.fingerprint !== fingerprint)
+        if (
+          prior.fingerprint !== fingerprint ||
+          prior.customer_id !== (customerId ?? null)
+        )
           throw new ConflictException(
-            'Start a new checkout for the changed bag.',
+            'Inicie uma nova compra para a sacola alterada.',
           );
         return prior;
       }
@@ -151,8 +161,8 @@ export class Orders {
       }
       return (
         await client.query(
-          'UPDATE orders SET subtotal=$2,total=$2+shipping WHERE id=$1 RETURNING *',
-          [id, subtotal],
+          'UPDATE orders SET subtotal=$2,total=$2+shipping,customer_id=$3 WHERE id=$1 RETURNING *',
+          [id, subtotal, customerId ?? null],
         )
       ).rows[0];
     });
@@ -162,7 +172,7 @@ export class Orders {
       'SELECT * FROM orders WHERE id=$1',
       [id],
     );
-    if (!rows.length) throw new NotFoundException('Order not found.');
+    if (!rows.length) throw new NotFoundException('Pedido não encontrado.');
     return rows[0];
   }
   async summary(id: string) {
@@ -202,7 +212,7 @@ export class Orders {
           [id],
         )
       ).rows[0];
-      if (!order) throw new NotFoundException('Order not found.');
+      if (!order) throw new NotFoundException('Pedido não encontrado.');
       if (
         order.mode !== expected.mode ||
         (expected.session &&
@@ -212,7 +222,9 @@ export class Orders {
           (order.total !== expected.total ||
             order.currency !== expected.currency))
       )
-        throw new ConflictException('Payment details do not match this order.');
+        throw new ConflictException(
+          'Os dados do pagamento não correspondem ao pedido.',
+        );
       if (order.state !== 'pending') return order.state;
       let next = state;
       if (order.mode === 'demo' && order.expires_at.getTime() <= Date.now())
@@ -238,8 +250,15 @@ export class Orders {
 }
 @Controller('v1')
 class OrdersController {
-  constructor(private orders: Orders) {}
-  @Get('orders/:id') summary(@Param('id', ParseUUIDPipe) id: string) {
+  constructor(
+    private orders: Orders,
+    private auth: Auth,
+  ) {}
+  @Get('orders/:id') async summary(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    await this.auth.own(req, id);
     return this.orders.summary(id);
   }
   @Get('staff') async staff(@Headers('authorization') token: string) {
@@ -279,7 +298,7 @@ class OrdersController {
       [id, actor],
     );
     if (!result.rowCount)
-      throw new ConflictException('Only a paid order can ship.');
+      throw new ConflictException('Apenas pedidos pagos podem ser enviados.');
     return result.rows[0];
   }
 }

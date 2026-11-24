@@ -4,9 +4,9 @@ import { UnauthorizedException } from '@nestjs/common';
 export const prod = process.env.NODE_ENV === 'production';
 export const mode = process.env.PAYMENT_MODE ?? 'demo';
 export const origin = process.env.STOREFRONT_URL ?? 'http://localhost:3000';
-export const country = (process.env.SHIPPING_COUNTRY ?? 'US').toUpperCase();
+export const country = (process.env.SHIPPING_COUNTRY ?? 'BR').toUpperCase();
 export const shipping = Number(process.env.SHIPPING_CENTS ?? '495');
-export const currency = 'usd';
+export const currency = 'brl';
 export const staffKeys: Record<string, string> = JSON.parse(
   process.env.STAFF_KEYS ?? '{}',
 );
@@ -47,5 +47,7 @@ export function staffIdentity(header?: string) {
   const token = digest(header ?? '');
   for (const [name, key] of Object.entries(staffKeys))
     if (timingSafeEqual(token, digest('Bearer ' + key))) return name;
-  throw new UnauthorizedException('A valid staff key is required.');
+  throw new UnauthorizedException(
+    'Informe uma chave de acesso válida da equipe.',
+  );
 }

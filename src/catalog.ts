@@ -32,7 +32,7 @@ class CatalogController {
   }
   @Get('books/:slug') async book(@Param('slug') slug: string) {
     const [book] = await this.catalog.books(slug);
-    if (!book) throw new NotFoundException('Book not found.');
+    if (!book) throw new NotFoundException('Livro não encontrado.');
     return book;
   }
   @Get('shop') shop() {

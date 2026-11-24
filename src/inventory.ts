@@ -24,7 +24,9 @@ export class Inventory {
     );
     if (!rows.length)
       throw new ConflictException(
-        'Insufficient stock for ' + sku + '. Adjust this line in your bag.',
+        'Estoque insuficiente para ' +
+          sku +
+          '. Ajuste este item na sua sacola.',
       );
     return rows[0];
   }
@@ -50,7 +52,7 @@ export class Inventory {
         requestId,
       )
     )
-      throw new BadRequestException('Provide an adjustment ID.');
+      throw new BadRequestException('Informe o identificador do ajuste.');
     if (
       typeof sku !== 'string' ||
       !Number.isInteger(delta) ||
@@ -61,7 +63,7 @@ export class Inventory {
       reason.length > 200
     )
       throw new BadRequestException(
-        'Enter a SKU, a nonzero adjustment and a reason.',
+        'Informe o SKU, uma alteração diferente de zero e um motivo.',
       );
     return this.db.tx(async (client) => {
       await client.query(
@@ -80,7 +82,9 @@ export class Inventory {
           previous.reason !== reason.trim() ||
           previous.actor !== actor
         )
-          throw new ConflictException('Adjustment ID already used.');
+          throw new ConflictException(
+            'O identificador do ajuste já foi utilizado.',
+          );
         return (
           await client.query(
             'SELECT sku,on_hand,reserved FROM editions WHERE sku=$1',
@@ -93,7 +97,7 @@ export class Inventory {
         [sku, delta],
       );
       if (!rows.length)
-        throw new ConflictException('Check the SKU and the available stock.');
+        throw new ConflictException('Confira o SKU e o estoque disponível.');
       await client.query(
         'INSERT INTO stock_log(sku,delta,reason,actor,request_id) VALUES ($1,$2,$3,$4,$5)',
         [sku, delta, reason.trim(), actor, requestId],

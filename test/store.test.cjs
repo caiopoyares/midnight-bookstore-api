@@ -3,13 +3,14 @@ const assert = require('node:assert/strict');
 const { mkdtemp, cp, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
-const { randomBytes, randomUUID } = require('node:crypto');
+const { createHash, randomBytes, randomUUID } = require('node:crypto');
 const { createServer } = require('node:net');
 const { Client } = require('pg');
 const Stripe = require('stripe');
 const staff = randomBytes(32).toString('hex');
 const password = randomBytes(24).toString('hex');
 const hook = 'whsec_local_fixture';
+let sessionCookie;
 let app, db, pg, dir, url, payments, jobs, openCluster, port;
 let failAfterCreate, completeDuringExpiry;
 const sessions = new Map(),
@@ -20,7 +21,7 @@ const address = {
   city: 'Salem',
   region: 'MA',
   postal: '01970',
-  country: 'US',
+  country: 'BR',
 };
 const line = (sku, quantity = 1) => ({ sku, quantity });
 const basket = (lines) => ({ email: 'reader@example.test', address, lines });
@@ -32,7 +33,11 @@ async function request(
 ) {
   const res = await fetch(url + '/v1/' + path, {
     method,
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: sessionCookie ?? '',
+      ...headers,
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: res.status, body: await res.json() };
@@ -100,7 +105,7 @@ before(async () => {
         id: 'cs_' + randomUUID(),
         metadata: args.metadata,
         client_reference_id: args.client_reference_id,
-        currency: 'usd',
+        currency: 'brl',
         amount_total: args.line_items[0].price_data.unit_amount,
         status: 'open',
         payment_status: 'unpaid',
@@ -135,8 +140,19 @@ beforeEach(async () => {
   keys.clear();
   sessions.clear();
   // This database lives in a new temporary cluster for this suite.
-  await db.pool.query('TRUNCATE books,orders CASCADE');
+  await db.pool.query('TRUNCATE books,orders,customers,login_links CASCADE');
   await db.migrate(true);
+  const customerId = randomUUID(),
+    token = randomBytes(32).toString('hex');
+  sessionCookie = 'midnight_session=' + token;
+  await db.pool.query('INSERT INTO customers(id,email) VALUES ($1,$2)', [
+    customerId,
+    'reader@example.test',
+  ]);
+  await db.pool.query(
+    "INSERT INTO customer_sessions VALUES ($1,$2,now()+interval '1 day')",
+    [createHash('sha256').update(token).digest('hex'), customerId],
+  );
 });
 after(async () => {
   if (app) await app.close();
@@ -336,6 +352,43 @@ test('stock changes enforce reserved quantities and retain an idempotent audit t
   assert.equal((await request('staff/stock', item, headers)).status, 201);
   assert.deepEqual(await stock('HILL-HC'), { on_hand: 2, reserved: 1 });
   assert.equal((await request('staff', null, headers)).body.log.length, 1);
+});
+test('login links are single-use and sessions cannot read another customer order', async () => {
+  assert.equal(
+    (
+      await request('checkout', basket([line('CARM-HC')]), {
+        'Idempotency-Key': randomUUID(),
+        Cookie: '',
+      })
+    ).status,
+    401,
+  );
+  const {
+    body: { id },
+  } = await buy([line('CARM-HC')]);
+  const token = randomBytes(32).toString('hex');
+  await db.pool.query(
+    "INSERT INTO login_links VALUES ($1,$2,now()+interval '10 minutes')",
+    [createHash('sha256').update(token).digest('hex'), 'other@example.test'],
+  );
+  const verified = await fetch(url + '/v1/auth/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  assert.equal(verified.status, 200);
+  const otherCookie = verified.headers.get('set-cookie').split(';')[0];
+  assert.equal((await request('auth/verify', { token })).status, 401);
+  assert.equal(
+    (await request('orders/' + id, null, { Cookie: otherCookie })).status,
+    401,
+  );
+  assert.equal((await request('orders/' + id)).status, 200);
+  await request('auth/logout', {}, { Cookie: otherCookie });
+  assert.equal(
+    (await request('auth/me', null, { Cookie: otherCookie })).status,
+    401,
+  );
 });
 test('a cold backup restores inventory and settled orders to a separate PostgreSQL cluster', async () => {
   const {
