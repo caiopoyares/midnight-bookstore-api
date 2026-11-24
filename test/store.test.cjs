@@ -1,17 +1,17 @@
 const { test, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtemp, cp, rm } = require('node:fs/promises');
+const { mkdtemp, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const { createHash, randomBytes, randomUUID } = require('node:crypto');
-const { createServer } = require('node:net');
 const { Client } = require('pg');
 const Stripe = require('stripe');
+const { startPostgres } = require('./helpers/postgres.cjs');
 const staff = randomBytes(32).toString('hex');
 const password = randomBytes(24).toString('hex');
 const hook = 'whsec_local_fixture';
 let sessionCookie;
-let app, db, pg, dir, url, payments, jobs, openCluster, port;
+let app, db, pg, dir, url, payments, jobs;
 let failAfterCreate, completeDuringExpiry;
 const { migrate } = require('../dist/migrate');
 const sessions = new Map(),
@@ -66,18 +66,9 @@ async function sendEvent(session, id = randomUUID(), signature = true) {
     'stripe-signature': signatureValue,
   });
 }
-async function availablePort() {
-  const server = createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = server.address().port;
-  await new Promise((resolve) => server.close(resolve));
-  return port;
-}
 before(async () => {
-  openCluster = (await import('../scripts/cluster.mjs')).startCluster;
-  dir = await mkdtemp(join(tmpdir(), 'nightjar-qa-'));
-  port = await availablePort();
-  pg = await openCluster(join(dir, 'original'), port, password);
+  dir = await mkdtemp(join(tmpdir(), 'midnight-store-'));
+  pg = await startPostgres({ password });
   Object.assign(process.env, {
     DATABASE_URL: pg.url,
     NODE_ENV: 'test',
@@ -145,7 +136,7 @@ beforeEach(async () => {
   completeDuringExpiry = false;
   keys.clear();
   sessions.clear();
-  // This database lives in a new temporary cluster for this suite.
+  // This database lives in a disposable Docker container for this suite.
   await db.pool.query('TRUNCATE books,orders,customers,login_links CASCADE');
   await migrate(db, { seed: true });
   const customerId = randomUUID(),
@@ -161,9 +152,15 @@ beforeEach(async () => {
   );
 });
 after(async () => {
-  if (app) await app.close();
-  if (pg) await pg.cluster.stop();
-  if (dir) await rm(dir, { recursive: true, force: true });
+  try {
+    if (app) await app.close();
+  } finally {
+    try {
+      if (pg) await pg.remove();
+    } finally {
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test('20 simultaneous attempts for one copy create exactly one order and one hold', async () => {
@@ -433,7 +430,7 @@ test('customer history paginates all orders without duplicates', async () => {
   assert.equal(all[0].id, expected[20]);
   assert.equal((await request('orders?page=3')).body.orders.length, 0);
 });
-test('a cold backup restores inventory and settled orders to a separate PostgreSQL cluster', async () => {
+test('a cold backup restores inventory and settled orders to a separate PostgreSQL container', async () => {
   const {
     body: { id },
   } = await buy([line('HILL-HC')]);
@@ -454,11 +451,11 @@ test('a cold backup restores inventory and settled orders to a separate PostgreS
     ).rows[0].n;
   await app.close();
   app = null;
-  await pg.cluster.stop();
-  pg = null;
   const copy = join(dir, 'restored');
-  await cp(join(dir, 'original'), copy, { recursive: true });
-  const restored = await openCluster(copy, await availablePort(), password);
+  await pg.backup(copy);
+  await pg.remove();
+  pg = null;
+  const restored = await startPostgres({ backupDirectory: copy, password });
   const client = new Client({ connectionString: restored.url });
   try {
     await client.connect();
@@ -480,7 +477,10 @@ test('a cold backup restores inventory and settled orders to a separate PostgreS
     );
     assert.ok(orders > 0);
   } finally {
-    await client.end();
-    await restored.cluster.stop();
+    try {
+      await client.end();
+    } finally {
+      await restored.remove();
+    }
   }
 });

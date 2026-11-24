@@ -66,9 +66,13 @@ O worker reconcilia reservas vencidas e envia confirmações com repetição seg
 
 O contrato OpenAPI é contract/openapi-1.1.0.json. O frontend mantém uma cópia dessa versão.
 
+Os testes exigem Node.js e Docker em execução. Não é necessário iniciar o Compose. A primeira execução baixa a imagem `postgres:18-bookworm`, caso ela ainda não esteja disponível localmente.
+
 ```sh
 npm ci
 npm test
 ```
 
-A suíte usa uma instância PostgreSQL temporária e isolada para testar concorrência pelo último exemplar, falha parcial, repetição de pagamentos, restauração, links de uso único e isolamento entre clientes. A aplicação cotidiana usa o PostgreSQL do Compose.
+A suíte cria contêineres PostgreSQL descartáveis com a mesma imagem usada pelo Compose, senhas aleatórias e portas locais atribuídas pelo Docker. Cada arquivo de testes usa seu próprio banco, sem acessar o banco da loja ou seu volume `postgres_data`. Os contêineres e seus volumes anônimos são removidos ao terminar os testes, inclusive quando uma asserção falha.
+
+Os testes cobrem migrações, concorrência pelo último exemplar, falha parcial, repetição de pagamentos, links de uso único e isolamento entre clientes. O teste de restauração faz uma cópia física com o PostgreSQL parado e verifica os dados em outro contêiner.

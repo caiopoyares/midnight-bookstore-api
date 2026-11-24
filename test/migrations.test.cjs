@@ -3,23 +3,17 @@ const assert = require('node:assert/strict');
 const { mkdtemp, mkdir, writeFile, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
-const { randomBytes } = require('node:crypto');
-const { createServer } = require('node:net');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { Database } = require('../dist/db');
 const { migrate } = require('../dist/migrate');
+const { startPostgres } = require('./helpers/postgres.cjs');
 const execute = promisify(execFile);
 let dir, directory, pg, db;
 
 before(async () => {
   dir = await mkdtemp(join(tmpdir(), 'midnight-migrations-'));
-  const server = createServer();
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = server.address().port;
-  await new Promise((resolve) => server.close(resolve));
-  const { startCluster } = await import('../scripts/cluster.mjs');
-  pg = await startCluster(join(dir, 'postgres'), port, randomBytes(24).toString('hex'));
+  pg = await startPostgres();
   process.env.DATABASE_URL = pg.url;
   db = new Database();
   directory = join(dir, 'sql');
@@ -39,9 +33,15 @@ beforeEach(async () => {
 });
 
 after(async () => {
-  if (db) await db.onModuleDestroy();
-  if (pg) await pg.cluster.stop();
-  if (dir) await rm(dir, { recursive: true, force: true });
+  try {
+    if (db) await db.onModuleDestroy();
+  } finally {
+    try {
+      if (pg) await pg.remove();
+    } finally {
+      if (dir) await rm(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test('discovers SQL files in numeric order and seeds only when requested', async () => {
